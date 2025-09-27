@@ -25,7 +25,7 @@ JOIN results res2 ON res1.race_id = res2.race_id
 JOIN runner r2 ON res2.runner_id = r2.id
 WHERE r1.gender = 'Female' AND r2.gender = 'Male' AND res1.place < res2.place;
 ```
-This query gave the correct response to the question, but my "bestResponse" method of shortening the answer caused it to misinterpet its results. It stated, "Yes, a woman named Emily beat a man named Johnson."
+This query gave the correct response to the question, but my "bestResponse" method of shortening the answer caused it to misinterpet its results. It stated, "Yes, a woman named Emily beat a man named Johnson." (Instead of stating the Emily Johnson has beaten a man.)
 I didn't include the SQL query or database schema when I gave it the results, so it wasn't able to interpret them correctly in this instance. When I did do so, it performed great.
 
 See either respones_zero_shot or response_single_domain_double_shot for other query examples.
