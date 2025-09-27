@@ -1,0 +1,62 @@
+{
+  "strategy": "single_domain_double_shot",
+  "prompt_prefix": "-- Enable foreign keys (must be turned on in SQLite)\nPRAGMA foreign_keys = ON;\n\nCREATE TABLE address (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    street TEXT NOT NULL,\n    city TEXT NOT NULL,\n    zip_code TEXT NOT NULL,\n    state TEXT NOT NULL\n);\n\nCREATE TABLE race (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL,\n    distance REAL NOT NULL,\n    date TEXT NOT NULL,        -- store as ISO 'YYYY-MM-DD'\n    elevation INTEGER NOT NULL,\n    address_id INTEGER NOT NULL,\n    FOREIGN KEY(address_id) REFERENCES address(id)\n);\n\nCREATE TABLE runner (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    first_name TEXT NOT NULL,\n    last_name TEXT NOT NULL,\n    phone_number TEXT NOT NULL,\n    age INTEGER NOT NULL,\n    gender TEXT CHECK(gender IN ('Male','Female')) NOT NULL,\n    address_id INTEGER NOT NULL,\n    FOREIGN KEY(address_id) REFERENCES address(id)\n);\n\nCREATE TABLE registration (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    runner_id INTEGER NOT NULL,\n    race_id INTEGER NOT NULL,\n    FOREIGN KEY(runner_id) REFERENCES runner(id),\n    FOREIGN KEY(race_id) REFERENCES race(id)\n);\n\nCREATE TABLE shoes (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    runner_id INTEGER NOT NULL,\n    brand TEXT NOT NULL,\n    size REAL NOT NULL,\n    model TEXT NOT NULL,\n    year INTEGER NOT NULL,\n    FOREIGN KEY(runner_id) REFERENCES runner(id)\n);\n\nCREATE TABLE prize (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    race_id INTEGER NOT NULL,\n    first_place INTEGER NOT NULL,\n    second_place INTEGER NOT NULL,\n    third_place INTEGER NOT NULL,\n    FOREIGN KEY(race_id) REFERENCES race(id)\n);\n\nCREATE TABLE results (\n    id INTEGER PRIMARY KEY AUTOINCREMENT,\n    race_id INTEGER NOT NULL,\n    runner_id INTEGER NOT NULL,\n    place INTEGER NOT NULL,\n    race_time TEXT NOT NULL,   -- store as 'HH:MM:SS'\n    FOREIGN KEY(race_id) REFERENCES race(id),\n    FOREIGN KEY(runner_id) REFERENCES runner(id)\n); Who has run a marathon?  \nSELECT DISTINCT r.first_name, r.last_name, race.name AS race_name, race.distance\n FROM runner r\n JOIN registration reg ON r.id = reg.runner_id\n JOIN race race ON reg.race_id = race.id\n WHERE race.distance = 26.20;  Give me a sqlite select statement that answers the question. Only respond with sqlite syntax. If there is an error do not explain it!",
+  "questionResults": [
+    {
+      "question": "Which race is the easiest when considering distance and elevation?",
+      "sql": "\nSELECT name, distance, elevation\nFROM race\nORDER BY distance ASC, elevation ASC\nLIMIT 1;\n",
+      "queryRawResponse": "[('BYU Homecoming', 5.0, 4500)]",
+      "friendlyResponse": "The BYU Homecoming race is the easiest based on distance and elevation, with a distance of 5.0 and an elevation of 4500.",
+      "error": "None"
+    },
+    {
+      "question": "Who is the fastest runner?",
+      "sql": "\nSELECT r.first_name, r.last_name, race.name AS race_name, MIN(results.race_time) AS fastest_time\nFROM runner r\nJOIN results ON r.id = results.runner_id\nJOIN race ON results.race_id = race.id\nGROUP BY r.id\nORDER BY fastest_time\nLIMIT 1;\n",
+      "queryRawResponse": "[('Jacob', 'Smith', 'BYU Homecoming', '00:25:30')]",
+      "friendlyResponse": "The fastest runner is Jacob Smith with a time of 25 minutes and 30 seconds.",
+      "error": "None"
+    },
+    {
+      "question": "What shoe would you recommend based off of race time?",
+      "sql": "\nSELECT sh.brand, sh.model, sh.size, r.first_name, r.last_name, rs.race_time\nFROM shoes sh\nJOIN runner r ON sh.runner_id = r.id\nJOIN results rs ON r.id = rs.runner_id\nJOIN race race ON rs.race_id = race.id\nORDER BY rs.race_time;\n",
+      "queryRawResponse": "[('Nike', 'Pegasus', 10.5, 'Jacob', 'Smith', '00:25:30'), ('Adidas', 'Ultraboost', 8.0, 'Emily', 'Johnson', '00:27:15'), ('Brooks', 'Ghost', 11.0, 'Michael', 'Lee', '00:50:45'), ('Nike', 'Pegasus', 10.5, 'Jacob', 'Smith', '00:55:00'), ('Adidas', 'Ultraboost', 8.0, 'Emily', 'Johnson', '02:59:59'), ('Brooks', 'Ghost', 11.0, 'Michael', 'Lee', '03:10:00')]",
+      "friendlyResponse": "Based on the data, for faster race times, consider the Nike Pegasus or Adidas Ultraboost. For longer race times, Brooks Ghost may be suitable.",
+      "error": "None"
+    },
+    {
+      "question": "What shoe would you recommend based off of prize money won?",
+      "sql": "\nSELECT s.brand, s.model\nFROM shoes s\nJOIN runner r ON s.runner_id = r.id\nJOIN results res ON r.id = res.runner_id\nJOIN prize p ON res.race_id = p.race_id\nWHERE (res.place = 1 AND p.first_place IS NOT NULL)\n   OR (res.place = 2 AND p.second_place IS NOT NULL)\n   OR (res.place = 3 AND p.third_place IS NOT NULL)\nGROUP BY s.brand, s.model\nORDER BY SUM(CASE WHEN res.place = 1 THEN p.first_place \n                  WHEN res.place = 2 THEN p.second_place \n                  WHEN res.place = 3 THEN p.third_place \n                  ELSE 0 END) DESC\nLIMIT 1;\n",
+      "queryRawResponse": "[('Adidas', 'Ultraboost')]",
+      "friendlyResponse": "Based on prize money won, I recommend the Adidas Ultraboost.",
+      "error": "None"
+    },
+    {
+      "question": "Which race has the most prize money?",
+      "sql": "\nSELECT race.name, (prize.first_place + prize.second_place + prize.third_place) AS total_prize_money\nFROM race\nJOIN prize ON race.id = prize.race_id\nORDER BY total_prize_money DESC\nLIMIT 1;\n",
+      "queryRawResponse": "[('Deseret News', 1750)]",
+      "friendlyResponse": "The race with the most prize money is the Deseret News race with $1,750.",
+      "error": "None"
+    },
+    {
+      "question": "Which races are located in Provo?",
+      "sql": "\nSELECT race.name \nFROM race\nJOIN address ON race.address_id = address.id\nWHERE address.city = 'Provo';\n",
+      "queryRawResponse": "[('BYU Homecoming',), ('Cougs vs Cancer',)]",
+      "friendlyResponse": "In Provo, you can find the BYU Homecoming race and the Cougs vs Cancer race.",
+      "error": "None"
+    },
+    {
+      "question": "Has a woman ever beat a man?",
+      "sql": "\nSELECT DISTINCT r1.first_name, r1.last_name\nFROM results res1\nJOIN runner r1 ON res1.runner_id = r1.id\nJOIN results res2 ON res1.race_id = res2.race_id \nJOIN runner r2 ON res2.runner_id = r2.id\nWHERE r1.gender = 'Female' AND r2.gender = 'Male' AND res1.place < res2.place;\n",
+      "queryRawResponse": "[('Emily', 'Johnson')]",
+      "friendlyResponse": "Yes, a woman named Emily beat a man named Johnson.",
+      "error": "None"
+    },
+    {
+      "question": "Which runner had to travel the furthest for a race?",
+      "sql": "\nSELECT r.first_name, r.last_name, race.name AS race_name, MAX(addr.distance_travelled) AS distance_travelled\nFROM runner r\nJOIN registration reg ON r.id = reg.runner_id\nJOIN race race ON reg.race_id = race.id\nJOIN (\n    SELECT a.id AS address_id, ABS(a1.zip_code - a2.zip_code) AS distance_travelled\n    FROM address a1\n    JOIN address a2 ON a1.id <> a2.id\n    JOIN race ra ON a2.id = ra.address_id\n    JOIN runner ru ON a1.id = ru.address_id\n) addr ON r.address_id = addr.address_id\nGROUP BY r.id\nORDER BY distance_travelled DESC\nLIMIT 1;\n",
+      "queryRawResponse": "[('Emily', 'Johnson')]",
+      "friendlyResponse": "Yes, a woman named Emily beat a man named Johnson.",
+      "error": "no such column: a.id"
+    }
+  ]
+}
